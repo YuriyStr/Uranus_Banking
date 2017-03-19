@@ -21,17 +21,29 @@ void performPreparations();
 void showDefaultMenu();
 void showAdminMenu();
 void showOperMenu();
+void showClientMenu();
+
+void showAdminQueries();
+void showOperQueries();
 
 void login();
 void signup();
 void logout();
 
-void addAccount(char *cardNo);
-void modifyAccount(char *cardNo);
-void deleteAccount(char *cardNo);
-void addClient(char *passportNo);
-void modifyClient(char *passportNo);
-void deleteClient(char *passportNo);
+void addAccount();
+void modifyAccount();
+void deleteAccount();
+void addClient();
+void modifyClient();
+void deleteClient();
+
+void addAccountFromBase(int query);
+void modifyAccountFromBase(int query);
+void deleteAccountFromBase(int query);
+void addClientFromBase(int query);
+void modifyClientFromBase(int query);
+void deleteClientFromBase(int query);
+
 void checkConfig();
 
 void credit(char *passportNo, char *cardNo, double money);
@@ -39,6 +51,9 @@ void debit (char *passportNo, char *cardNo, double money);
 void transfer(char *passportNo, char *cardNoFrom, char *cardNoTo, double money);
 void checkBalance(char *passportNo, char *cardNo);
 
+void (* adminQueries[])() = {addClient, modifyClient, deleteClient, addAccount, modifyAccount, deleteAccount };
+void (* adminQueriesFromBase[])() = {addClientFromBase, modifyClientFromBase, deleteClientFromBase, addAccountFromBase, modifyAccountFromBase, deleteAccountFromBase };
+void (*operQueries[])(char*, char*, double) = { credit, debit };
 
 static int callbackQueries(void *data, int argc, char **argv, char **azColName)
 {
@@ -79,6 +94,10 @@ int main()
         else if (currUser == OPER)
         {
             showOperMenu();
+        }
+        else if (currUser == CLIENT)
+        {
+            showClientMenu();
         }
         else
             break;
@@ -124,6 +143,7 @@ void showAdminMenu()
     printf ("5 - Modify client information\n");
     printf ("6 - Delete client\n");
     printf ("7 - Check configuration info\n");
+    printf ("8 - Check client queries\n");
     printf ("0 - Logout\n");
     scanf ("%d", &code);
     
@@ -171,6 +191,12 @@ void showAdminMenu()
             break;
         }
             
+        case 8:
+        {
+            showAdminQueries();
+            break;
+        }
+            
         case 0:
         {
             logout();
@@ -193,6 +219,7 @@ void showOperMenu()
     printf ("2 - Debit money\n");
     printf ("3 - Transfer money\n");
     printf ("4 - Check balance\n");
+    printf ("5 - Show client queries\n");
     printf ("0 - Logout\n");
     scanf("%d", &code);
     
@@ -222,6 +249,12 @@ void showOperMenu()
             break;
         }
             
+        case 5:
+        {
+            showOperQueries();
+            break;
+        }
+            
         case 0:
         {
             logout();
@@ -234,6 +267,50 @@ void showOperMenu()
             break;
         }
     }
+}
+
+void showClientMenu()
+{
+    int code;
+    printf ("1 - Send query to administrator\n");
+    printf ("2 - Send query to operationsist\n");
+    printf ("3 - Check balance\n");
+    printf ("0 - Logout\n");
+    scanf("%d", &code);
+    
+    switch (code)
+    {
+        case 1:
+        {
+            
+            break;
+        }
+            
+        case 2:
+        {
+            
+            break;
+        }
+            
+        case 3:
+        {
+            
+            break;
+        }
+            
+        case 0:
+        {
+            logout();
+            break;
+        }
+            
+        default:
+        {
+            printf ("Invalid command\n");
+            break;
+        }
+    }
+
 }
 
 void login()
@@ -349,6 +426,54 @@ void logout()
     currUser = NO_USER;
 }
 
+void showAdminQueries()
+{
+    int code;
+    char *zErrMsg = 0;
+    sqlite3_exec(db, "SELECT * FROM ADMIN_QUERIES;", callbackQueries, NULL, &zErrMsg);
+    printf ("<ID> - perform query\n");
+    printf ("0 - Exit\n");
+    for(;;)
+    {
+        int accept;
+        scanf("%d", &code);
+        if (code == 0)
+            break;
+        printf ("1 - accept query\n");
+        printf ("2 - deny query\n");
+        scanf("%d", &accept);
+        if (accept != 1 && accept != 2)
+        {
+            printf ("Invalid command");
+            continue;
+        }
+        
+        if (accept == 1)
+        {
+            char *sql;
+            int id;
+            sql = "SELECT QueryID from ADMIN_QUERIES WHERE id = ?;";
+            rc = sqlite3_prepare_v2(db, sql, -1, &res, 0);
+            sqlite3_bind_int(res, 1, code);
+            sqlite3_step(res);
+            id = sqlite3_column_int(res, 0);
+            adminQueriesFromBase[id - 1](code);
+        }
+        char del[1000];
+        char buf[8];
+        sprintf(buf, "%d", code);
+        strcpy(del, "DELETE FROM ADMIN_QUERIES WHERE id = ");
+        strcat(del, buf);
+        sqlite3_exec(db, del, callbackQueries, NULL, &zErrMsg);
+        
+        printf ("Done\n\n");
+    }
+}
+
+void showOperQueries()
+{
+    // TODO
+}
 
 
 void addAccount(char *cardNo)
@@ -380,6 +505,79 @@ void deleteClient(char *passportNo)
 {
     // TODO
 }
+
+
+void addAccountFromBase(int query)
+{
+    // TODO
+}
+
+void modifyAccountFromBase(int query)
+{
+    // TODO
+}
+
+void deleteAccountFromBase(int query)
+{
+    // TODO
+}
+
+void addClientFromBase(int query)
+{
+    char *passport;
+    char *firstName;
+    char *lastName;
+    char *password;
+    char *sel = "SELECT PassportNo, FirstName, LastName, Password from ADMIN_QUERIES WHERE id = ?;";
+    rc = sqlite3_prepare_v2(db, sel, -1, &res, 0);
+    sqlite3_bind_int(res, 1, query);
+    sqlite3_step(res);
+    
+    passport = (char*)sqlite3_column_text(res, 0);
+    firstName = (char*)sqlite3_column_text(res, 1);
+    lastName = (char*)sqlite3_column_text(res, 2);
+    password = (char*)sqlite3_column_text(res, 3);
+    
+    char *insUsers = "INSERT into BANK_USERS(Login, Password, Role) Values(@log, @pass, @role);";
+    rc = sqlite3_prepare_v2(db, insUsers, -1, &res, 0);
+    int idx = sqlite3_bind_parameter_index(res, "@log");
+    sqlite3_bind_text(res, idx, passport, -1, SQLITE_TRANSIENT);
+    
+    idx = sqlite3_bind_parameter_index(res, "@pass");
+    sqlite3_bind_text(res, idx, password, -1, SQLITE_TRANSIENT);
+    
+    idx = sqlite3_bind_parameter_index(res, "@role");
+    sqlite3_bind_text(res, idx, "Client", -1, SQLITE_TRANSIENT);
+    
+    sqlite3_step(res);
+    
+    char *insClients = "INSERT into BANK_CLIENTS(Passport_No, First_Name, Surname) Values(@pass, @name, @surname);";
+
+    rc = sqlite3_prepare_v2(db, insClients, -1, &res, 0);
+    idx = sqlite3_bind_parameter_index(res, "@pass");
+    sqlite3_bind_text(res, idx, passport, -1, SQLITE_TRANSIENT);
+    
+    idx = sqlite3_bind_parameter_index(res, "@name");
+    sqlite3_bind_text(res, idx, firstName, -1, SQLITE_TRANSIENT);
+    
+    idx = sqlite3_bind_parameter_index(res, "@surname");
+    sqlite3_bind_text(res, idx, lastName, -1, SQLITE_TRANSIENT);
+    
+    sqlite3_step(res);
+
+}
+
+
+void modifyClientFromBase(int query)
+{
+    // TODO
+}
+
+void deleteClientFromBase(int query)
+{
+    // TODO
+}
+
 
 void checkConfig()
 {

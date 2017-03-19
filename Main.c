@@ -7,19 +7,23 @@
 #define NO_USER 0
 #define ADMIN 1
 #define OPER 2
+#define CLIENT 3
 
 sqlite3 *db;
 sqlite3_stmt *res;
 int rc;
 int currUser = NO_USER;
 int working = 1;
+char currLogin[100];
 
 void performPreparations();
 
 void showDefaultMenu();
 void showAdminMenu();
 void showOperMenu();
+
 void login();
+void signup();
 void logout();
 
 void addAccount(char *cardNo);
@@ -35,9 +39,26 @@ void debit (char *passportNo, char *cardNo, double money);
 void transfer(char *passportNo, char *cardNoFrom, char *cardNoTo, double money);
 void checkBalance(char *passportNo, char *cardNo);
 
+
+static int callbackQueries(void *data, int argc, char **argv, char **azColName)
+{
+    if (argc == 0)
+    {
+        printf ("No queries found\n\n");
+        return 0;
+    }
+    int i;
+    for(i = 0; i < argc; i++)
+    {
+        printf("%s = %s\n", azColName[i], argv[i]);
+    }
+    printf("\n");
+    return 0;
+}
+
 int main()
 {
-    rc = sqlite3_open("./TP_Lab5/Bank.db", &db);
+    rc = sqlite3_open("./Uranus_Banking/Bank.db", &db);
     if (rc)
     {
         fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
@@ -75,6 +96,7 @@ void performPreparations()
 void showDefaultMenu()
 {
     printf("1 - Login\n");
+    printf ("2 - Sign up\n");
     printf("0 - Quit\n");
     int code;
     scanf ("%d", &code);
@@ -82,10 +104,14 @@ void showDefaultMenu()
     {
         login();
     }
+    else if (code == 2)
+    {
+        signup();
+    }
     else if (code == 0)
         working = 0;
     else
-        printf("Invalid command\n");
+        printf("Invalid command\n\n");
 }
 
 void showAdminMenu()
@@ -261,8 +287,61 @@ void login()
             currUser = ADMIN;
         else if (strcmp(role, "Oper") == 0)
             currUser = OPER;
+        else if (strcmp(role, "Client") == 0)
+            currUser = CLIENT;
+        strcpy (currLogin, log);
         break;
     }
+}
+
+void signup()
+{
+    char log[100];
+    char *pass;
+    char *repPass;
+    char firstName[100];
+    char lastName[100];
+    char *type;
+    char *sql = "INSERT into ADMIN_QUERIES (PassportNo, FirstName, LastName, QueryType, QueryID, password) Values (@passport, @name, @surname, @type, 1, @password)";
+    char *sel = "SELECT Type from ADMIN_QUERY_TYPES WHERE id = ?";
+    
+    rc = sqlite3_prepare_v2(db, sel, -1, &res, 0);
+    sqlite3_bind_int(res, 1, 1);
+    sqlite3_step(res);
+    type = (char*)sqlite3_column_text(res, 0);
+    
+    printf("Enter your passport number: ");
+    scanf("%s", log);
+    printf ("Enter your first name: ");
+    scanf("%s", firstName);
+    printf ("Enter your last name: ");
+    scanf("%s", lastName);
+    
+    do
+    {
+        pass = getpass("Enter your password: ");
+        repPass = getpass("Repeat your password: ");
+    } while (strcmp (pass, repPass) != 0);
+    
+    rc = sqlite3_prepare_v2(db, sql, -1, &res, 0);
+    int idx = sqlite3_bind_parameter_index(res, "@passport");
+    sqlite3_bind_text(res, idx, log, -1, SQLITE_TRANSIENT);
+    
+    idx = sqlite3_bind_parameter_index(res, "@name");
+    sqlite3_bind_text(res, idx, firstName, -1, SQLITE_TRANSIENT);
+    
+    idx = sqlite3_bind_parameter_index(res, "@surname");
+    sqlite3_bind_text(res, idx, lastName, -1, SQLITE_TRANSIENT);
+    
+    idx = sqlite3_bind_parameter_index(res, "@type");
+    sqlite3_bind_text(res, idx, type, -1, SQLITE_TRANSIENT);
+    
+    idx = sqlite3_bind_parameter_index(res, "@password");
+    sqlite3_bind_text(res, idx, pass, -1, SQLITE_TRANSIENT);
+    
+    if (sqlite3_step(res) != SQLITE_DONE)
+        printf("Executin failed: %s\n\n", sqlite3_errmsg(db));
+    printf ("Your data has been sent to administrator for verification. Thank you for choosing Uranus Banking\n\n");
 }
 
 void logout()

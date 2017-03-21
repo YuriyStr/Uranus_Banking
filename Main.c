@@ -513,17 +513,130 @@ void deleteClient(char *passportNo)
 
 void addAccountFromBase(int query)
 {
-    // TODO
+    char *passport;
+    char *cardNo;
+    char *type;
+    int typeID;
+    double commission;
+    int ownerID;
+    int idx;
+    char *sel = "SELECT PassportNo, newCardNo, newAccountTypeID, newAccountType from ADMIN_QUERIES WHERE id = ?;";
+    rc = sqlite3_prepare_v2(db, sel, -1, &res, 0);
+    sqlite3_bind_int(res, 1, query);
+    sqlite3_step(res);
+    
+    passport = (char*)sqlite3_column_text(res, 0);
+    cardNo = (char*)sqlite3_column_text(res, 1);
+    type = (char*)sqlite3_column_text(res, 3);
+    typeID = sqlite3_column_int(res, 2);
+    
+    sel = "SELECT Commission FROM BANK_CONFIG WHERE id = ?";
+    rc = sqlite3_prepare_v2(db, sel, -1, &res, 0);
+    sqlite3_bind_int(res, 1, typeID);
+    sqlite3_step(res);
+    commission = sqlite3_column_double(res, 0);
+    
+    sel = "SELECT id FROM BANK_CLIENTS WHERE Passport_No = ?";
+    rc = sqlite3_prepare_v2(db, sel, -1, &res, 0);
+    sqlite3_bind_text(res, 1, passport, -1, SQLITE_TRANSIENT);
+    sqlite3_step(res);
+    ownerID = sqlite3_column_int(res, 0);
+    
+    char *sql = "INSERT INTO BANK_ACCOUNTS (Owner_ID, Type, Balance, TotalTransactions, Commission, Debt, Card_No) Values(@ownerID, @type, 0, 0, @comm, 0, @card);";
+    rc = sqlite3_prepare_v2(db, sql, -1, &res, 0);
+    idx = sqlite3_bind_parameter_index(res, "@ownerID");
+    sqlite3_bind_int(res, idx, ownerID);
+    
+    idx = sqlite3_bind_parameter_index(res, "@type");
+    sqlite3_bind_text(res, idx, type, -1, SQLITE_TRANSIENT);
+    
+    idx = sqlite3_bind_parameter_index(res, "@comm");
+    sqlite3_bind_double(res, idx, commission);
+    
+    idx = sqlite3_bind_parameter_index(res, "@card");
+    sqlite3_bind_text(res, idx, cardNo, -1, SQLITE_TRANSIENT);
+    
+    sqlite3_step(res);
+
 }
 
 void modifyAccountFromBase(int query)
 {
-    // TODO
+    char *passport;
+    char *cardNo;
+    char *oldCardNo;
+    char *type;
+    int typeID;
+    double commission;
+    int ownerID;
+    int idx;
+    char *sel = "SELECT PassportNo, newCardNo, newAccountTypeID, newAccountType, oldCardNo from ADMIN_QUERIES WHERE id = ?;";
+    rc = sqlite3_prepare_v2(db, sel, -1, &res, 0);
+    sqlite3_bind_int(res, 1, query);
+    sqlite3_step(res);
+    
+    passport = (char*)sqlite3_column_text(res, 0);
+    cardNo = (char*)sqlite3_column_text(res, 1);
+    type = (char*)sqlite3_column_text(res, 3);
+    typeID = sqlite3_column_int(res, 2);
+    oldCardNo = (char*)sqlite3_column_text(res, 4);
+    
+    sel = "SELECT id FROM BANK_CLIENTS WHERE Passport_No = ?";
+    rc = sqlite3_prepare_v2(db, sel, -1, &res, 0);
+    sqlite3_bind_text(res, 1, passport, -1, SQLITE_TRANSIENT);
+    sqlite3_step(res);
+    ownerID = sqlite3_column_int(res, 0);
+    
+    sel = "SELECT Commission FROM BANK_CONFIG WHERE id = ?";
+    rc = sqlite3_prepare_v2(db, sel, -1, &res, 0);
+    sqlite3_bind_int(res, 1, typeID);
+    sqlite3_step(res);
+    commission = sqlite3_column_double(res, 0);
+    
+    char *sql = "UPDATE BANK_ACCOUNTS set Card_No = @newCardNo, Type = @type, Commission = @comm WHERE Owner_ID = @id AND Card_No = @oldCardNo;";
+    rc = sqlite3_prepare_v2(db, sql, -1, &res, 0);
+    idx = sqlite3_bind_parameter_index (res, "@newCardNo");
+    sqlite3_bind_text(res, idx, cardNo, -1, SQLITE_TRANSIENT);
+    idx = sqlite3_bind_parameter_index (res, "@type");
+    sqlite3_bind_text(res, idx, type, -1, SQLITE_TRANSIENT);
+    idx = sqlite3_bind_parameter_index (res, "@comm");
+    sqlite3_bind_double(res, idx, commission);
+    idx = sqlite3_bind_parameter_index (res, "@id");
+    sqlite3_bind_int(res, idx, ownerID);
+    idx = sqlite3_bind_parameter_index (res, "@oldCardNo");
+    sqlite3_bind_text(res, idx, oldCardNo, -1, SQLITE_TRANSIENT);
+    sqlite3_step(res);
+
+
 }
 
 void deleteAccountFromBase(int query)
 {
-    // TODO
+    char *cardNo;
+    char *passport;
+    int ownerID;
+    int idx;
+    char *sel = "SELECT PassportNo, oldCardNo from ADMIN_QUERIES WHERE id = ?;";
+    rc = sqlite3_prepare_v2(db, sel, -1, &res, 0);
+    sqlite3_bind_int(res, 1, query);
+    sqlite3_step(res);
+    passport = (char*)sqlite3_column_text(res, 0);
+    cardNo = (char*)sqlite3_column_text(res, 1);
+    
+    sel = "SELECT id FROM BANK_CLIENTS WHERE Passport_No = ?";
+    rc = sqlite3_prepare_v2(db, sel, -1, &res, 0);
+    sqlite3_bind_text(res, 1, passport, -1, SQLITE_TRANSIENT);
+    sqlite3_step(res);
+    ownerID = sqlite3_column_int(res, 0);
+    
+    char *sql = "DELETE FROM BANK_ACCOUNTS WHERE Owner_ID = @ownerID AND Card_No = @cardNo";
+    rc = sqlite3_prepare_v2(db, sql, -1, &res, 0);
+    
+    idx = sqlite3_bind_parameter_index (res, "@ownerID");
+    sqlite3_bind_int(res, idx, ownerID);
+    idx = sqlite3_bind_parameter_index (res, "@cardNo");
+    sqlite3_bind_text(res, idx, cardNo, -1, SQLITE_TRANSIENT);
+    sqlite3_step(res);
 }
 
 void addClientFromBase(int query)
@@ -614,12 +727,19 @@ void modifyClientFromBase(int query)
 void deleteClientFromBase(int query)
 {
     char *passport;
+    int ownerID;
     char *sel = "SELECT PassportNo from ADMIN_QUERIES WHERE id = ?;";
     rc = sqlite3_prepare_v2(db, sel, -1, &res, 0);
     sqlite3_bind_int(res, 1, query);
     sqlite3_step(res);
-    
     passport = (char*)sqlite3_column_text(res, 0);
+    
+    sel = "SELECT id FROM BANK_CLIENTS WHERE Passport_No = ?";
+    rc = sqlite3_prepare_v2(db, sel, -1, &res, 0);
+    sqlite3_bind_text(res, 1, passport, -1, SQLITE_TRANSIENT);
+    sqlite3_step(res);
+    ownerID = sqlite3_column_int(res, 0);
+    
     char *sql = "DELETE FROM BANK_CLIENTS WHERE Passport_No = ?;";
     rc = sqlite3_prepare_v2(db, sql, -1, &res, 0);
     sqlite3_bind_text(res, 1, passport, -1, SQLITE_TRANSIENT);
@@ -629,6 +749,11 @@ void deleteClientFromBase(int query)
     rc = sqlite3_prepare_v2(db, sql, -1, &res, 0);
     sqlite3_bind_text(res, 1, passport, -1, SQLITE_TRANSIENT);
     sqlite3_step(res);
+    
+    sql = "DELETE FROM BANK_ACCOUNTS WHERE Owner_ID = ?";
+    rc = sqlite3_prepare_v2(db, sql, -1, &res, 0);
+    sqlite3_bind_int(res, 1, ownerID);
+    while (sqlite3_step(res) == SQLITE_ROW);
 }
 
 
@@ -718,15 +843,28 @@ void sendAdminQuery()
             break;
         }
             
-        case 2:
+        case 2: case 5:
         {
+            if (code == 5)
+            {
+                char buf[100];
+                printf("Enter your current card number: ");
+                getchar();
+                fgets(buf, 100, stdin);
+                buf[strlen(buf) - 1] = '\0';
+                idx = sqlite3_bind_parameter_index(res, "@oldCardNo");
+                sqlite3_bind_text(res, idx, buf, -1, SQLITE_TRANSIENT);
+            }
+            else
+            {
+                idx = sqlite3_bind_parameter_index(res, "@oldCardNo");
+                sqlite3_bind_null(res, idx);
+            }
             idx = sqlite3_bind_parameter_index (res, "@newName");
             sqlite3_bind_null(res, idx);
             idx = sqlite3_bind_parameter_index (res, "@newSurname");
             sqlite3_bind_null(res, idx);
             idx = sqlite3_bind_parameter_index (res, "@newPass");
-            sqlite3_bind_null(res, idx);
-            idx = sqlite3_bind_parameter_index(res, "@oldCardNo");
             sqlite3_bind_null(res, idx);
             idx = sqlite3_bind_parameter_index(res, "@newCardNo");
             sqlite3_bind_null(res, idx);
@@ -741,6 +879,66 @@ void sendAdminQuery()
                 printf ("Your data has been sent to administrator for verification. Thank you for choosing Uranus Banking\n\n");
             break;
 
+        }
+        
+        case 3: case 4:
+        {
+            char buf[100];
+            int accType;
+            getchar();
+            
+            if (code == 4)
+            {
+                printf("Enter your current card number: ");
+                fgets(buf, 100, stdin);
+                buf[strlen(buf) - 1] = '\0';
+                idx = sqlite3_bind_parameter_index(res, "@oldCardNo");
+                sqlite3_bind_text(res, idx, buf, -1, SQLITE_TRANSIENT);
+            }
+            else
+            {
+                idx = sqlite3_bind_parameter_index(res, "@oldCardNo");
+                sqlite3_bind_null(res, idx);
+            }
+            
+            printf("Enter your new card number: ");
+            fgets(buf, 100, stdin);
+            buf[strlen(buf) - 1] = '\0';
+            idx = sqlite3_bind_parameter_index(res, "@newCardNo");
+            sqlite3_bind_text(res, idx, buf, -1, SQLITE_TRANSIENT);
+            
+            do
+            {
+                printf("Choose your account type:\n");
+                printf ("1 - Checking\n");
+                printf("2 - Saving\n");
+                printf("3 - Overdraft\n");
+                scanf("%d", &accType);
+            }while (accType < 1 || accType > 3);
+            idx = sqlite3_bind_parameter_index(res, "@newAccountTypeID");
+            sqlite3_bind_int(res, idx, accType);
+            
+            char *conf = "SELECT Account_Type FROM BANK_CONFIG WHERE id = ?";
+            sqlite3_stmt *pStmt;
+            sqlite3_prepare_v2(db, conf, -1, &pStmt, 0);
+            sqlite3_bind_int(pStmt, 1, accType);
+            sqlite3_step(pStmt);
+            strcpy (buf, (char*)sqlite3_column_text(pStmt, 0));
+            idx = sqlite3_bind_parameter_index(res, "@newAccountType");
+            sqlite3_bind_text(res, idx, buf, -1, SQLITE_TRANSIENT);
+            
+            idx = sqlite3_bind_parameter_index (res, "@newName");
+            sqlite3_bind_null(res, idx);
+            idx = sqlite3_bind_parameter_index (res, "@newSurname");
+            sqlite3_bind_null(res, idx);
+            idx = sqlite3_bind_parameter_index (res, "@newPass");
+            sqlite3_bind_null(res, idx);
+
+            if (sqlite3_step(res) != SQLITE_DONE)
+                printf("Execution failed: %s\n\n", sqlite3_errmsg(db));
+            else
+                printf ("Your data has been sent to administrator for verification. Thank you for choosing Uranus Banking\n\n");
+            break;
         }
         default:
             break;

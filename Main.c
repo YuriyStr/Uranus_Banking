@@ -46,13 +46,16 @@ void deleteClientFromBase(int query);
 
 void checkConfig();
 
+void sendAdminQuery();
+void sendOperQuery();
+
 void credit(char *passportNo, char *cardNo, double money);
 void debit (char *passportNo, char *cardNo, double money);
 void transfer(char *passportNo, char *cardNoFrom, char *cardNoTo, double money);
 void checkBalance(char *passportNo, char *cardNo);
 
 void (* adminQueries[])() = {addClient, modifyClient, deleteClient, addAccount, modifyAccount, deleteAccount };
-void (* adminQueriesFromBase[])() = {addClientFromBase, modifyClientFromBase, deleteClientFromBase, addAccountFromBase, modifyAccountFromBase, deleteAccountFromBase };
+void (* adminQueriesFromBase[])(int) = {addClientFromBase, modifyClientFromBase, deleteClientFromBase, addAccountFromBase, modifyAccountFromBase, deleteAccountFromBase };
 void (*operQueries[])(char*, char*, double) = { credit, debit };
 
 static int callbackQueries(void *data, int argc, char **argv, char **azColName)
@@ -282,13 +285,13 @@ void showClientMenu()
     {
         case 1:
         {
-            
+            sendAdminQuery();
             break;
         }
             
         case 2:
         {
-            
+            sendAdminQuery();
             break;
         }
             
@@ -417,8 +420,9 @@ void signup()
     sqlite3_bind_text(res, idx, pass, -1, SQLITE_TRANSIENT);
     
     if (sqlite3_step(res) != SQLITE_DONE)
-        printf("Executin failed: %s\n\n", sqlite3_errmsg(db));
-    printf ("Your data has been sent to administrator for verification. Thank you for choosing Uranus Banking\n\n");
+        printf("Execution failed: %s\n\n", sqlite3_errmsg(db));
+    else
+        printf ("Your data has been sent to administrator for verification. Thank you for choosing Uranus Banking\n\n");
 }
 
 void logout()
@@ -430,11 +434,11 @@ void showAdminQueries()
 {
     int code;
     char *zErrMsg = 0;
-    sqlite3_exec(db, "SELECT * FROM ADMIN_QUERIES;", callbackQueries, NULL, &zErrMsg);
-    printf ("<ID> - perform query\n");
-    printf ("0 - Exit\n");
     for(;;)
     {
+        sqlite3_exec(db, "SELECT * FROM ADMIN_QUERIES;", callbackQueries, NULL, &zErrMsg);
+        printf ("<ID> - perform query\n");
+        printf ("0 - Exit\n");
         int accept;
         scanf("%d", &code);
         if (code == 0)
@@ -570,16 +574,180 @@ void addClientFromBase(int query)
 
 void modifyClientFromBase(int query)
 {
-    // TODO
+    int idx;
+    char *passport;
+    char *firstName;
+    char *lastName;
+    char *newPassport;
+    char *sel = "SELECT PassportNo, newFirstName, newLastName, newPassportNo from ADMIN_QUERIES WHERE id = ?;";
+    rc = sqlite3_prepare_v2(db, sel, -1, &res, 0);
+    sqlite3_bind_int(res, 1, query);
+    sqlite3_step(res);
+    
+    passport = (char*)sqlite3_column_text(res, 0);
+    firstName = (char*)sqlite3_column_text(res, 1);
+    lastName = (char*)sqlite3_column_text(res, 2);
+    newPassport = (char*)sqlite3_column_text(res, 3);
+    
+    char *sql = "UPDATE BANK_CLIENTS set Passport_No = @newPass, First_Name = @name, Surname = @surname WHERE Passport_No = @oldPass";
+    rc = sqlite3_prepare_v2(db, sql, -1, &res, 0);
+    idx = sqlite3_bind_parameter_index (res, "@newPass");
+    sqlite3_bind_text(res, idx, newPassport, -1, SQLITE_TRANSIENT);
+    idx = sqlite3_bind_parameter_index (res, "@name");
+    sqlite3_bind_text(res, idx, firstName, -1, SQLITE_TRANSIENT);
+    idx = sqlite3_bind_parameter_index (res, "@surname");
+    sqlite3_bind_text(res, idx, lastName, -1, SQLITE_TRANSIENT);
+    idx = sqlite3_bind_parameter_index (res, "@oldPass");
+    sqlite3_bind_text(res, idx, passport, -1, SQLITE_TRANSIENT);
+    sqlite3_step(res);
+    
+    sql = "UPDATE BANK_USERS set Login = @newPass WHERE Login = @oldPass";
+    rc = sqlite3_prepare_v2(db, sql, -1, &res, 0);
+    idx = sqlite3_bind_parameter_index (res, "@newPass");
+    sqlite3_bind_text(res, idx, newPassport, -1, SQLITE_TRANSIENT);
+    idx = sqlite3_bind_parameter_index (res, "@oldPass");
+    sqlite3_bind_text(res, idx, passport, -1, SQLITE_TRANSIENT);
+    
+    sqlite3_step(res);
 }
 
 void deleteClientFromBase(int query)
 {
-    // TODO
+    char *passport;
+    char *sel = "SELECT PassportNo from ADMIN_QUERIES WHERE id = ?;";
+    rc = sqlite3_prepare_v2(db, sel, -1, &res, 0);
+    sqlite3_bind_int(res, 1, query);
+    sqlite3_step(res);
+    
+    passport = (char*)sqlite3_column_text(res, 0);
+    char *sql = "DELETE FROM BANK_CLIENTS WHERE Passport_No = ?;";
+    rc = sqlite3_prepare_v2(db, sql, -1, &res, 0);
+    sqlite3_bind_text(res, 1, passport, -1, SQLITE_TRANSIENT);
+    sqlite3_step(res);
+    
+    sql = "DELETE FROM BANK_USERS WHERE Login = ?;";
+    rc = sqlite3_prepare_v2(db, sql, -1, &res, 0);
+    sqlite3_bind_text(res, 1, passport, -1, SQLITE_TRANSIENT);
+    sqlite3_step(res);
 }
 
 
 void checkConfig()
+{
+    char *zErrMsg = 0;
+    sqlite3_exec(db, "SELECT * FROM BANK_CONFIG;", callbackQueries, NULL, &zErrMsg);
+}
+
+void sendAdminQuery()
+{
+    int code;
+    printf ("1 - Modify personal information\n");
+    printf ("2 - Delete personal information\n");
+    printf ("3 - Add new account\n");
+    printf ("4 - Modify existing account\n");
+    printf ("5 - Delete existing account\n");
+    scanf ("%d", &code);
+    if (code < 1 || code > 5)
+        return;
+    
+    char *firstName;
+    char *lastName;
+    char *type;
+    char *selType = "SELECT Type from ADMIN_QUERY_TYPES WHERE id = ?";
+    char *selPersonal = "SELECT First_Name, Surname FROM BANK_CLIENTS WHERE Passport_No = ?";
+    
+    rc = sqlite3_prepare_v2(db, selType, -1, &res, 0);
+    sqlite3_bind_int(res, 1, code + 1);
+    sqlite3_step(res);
+    type = (char*)sqlite3_column_text(res, 0);
+    
+    rc = sqlite3_prepare_v2(db, selPersonal, -1, &res, 0);
+    sqlite3_bind_text(res, 1, currLogin, -1, SQLITE_TRANSIENT);
+    sqlite3_step(res);
+    firstName = (char*)sqlite3_column_text(res, 0);
+    lastName = (char*)sqlite3_column_text(res, 1);
+    
+    int idx;
+    char *sql = "INSERT into ADMIN_QUERIES (PassportNo, FirstName, LastName, QueryType, QueryID, newPassportNo, newFirstName, newLastName, oldCardNo, newCardNo, newAccountTypeID, newAccountType) Values (@passport, @name, @surname, @type, @queryID, @newPass, @newName, @newSurname, @oldCardNo, @newCardNo, @newAccountTypeID, @newAccountType);";
+    rc = sqlite3_prepare_v2(db, sql, -1, &res, 0);
+    
+    idx = sqlite3_bind_parameter_index (res, "@passport");
+    sqlite3_bind_text(res, idx, currLogin, -1, SQLITE_TRANSIENT);
+    idx = sqlite3_bind_parameter_index (res, "@name");
+    sqlite3_bind_text(res, idx, firstName, -1, SQLITE_TRANSIENT);
+    idx = sqlite3_bind_parameter_index (res, "@surname");
+    sqlite3_bind_text(res, idx, lastName, -1, SQLITE_TRANSIENT);
+    idx = sqlite3_bind_parameter_index (res, "@type");
+    sqlite3_bind_text(res, idx, type, -1, SQLITE_TRANSIENT);
+    idx = sqlite3_bind_parameter_index(res, "@queryID");
+    sqlite3_bind_int(res, idx, code + 1);
+    
+    switch (code)
+    {
+        case 1:
+        {
+            char buf[100];
+            printf ("Enter first name: ");
+            scanf("%s", buf);
+            idx = sqlite3_bind_parameter_index (res, "@newName");
+            sqlite3_bind_text(res, idx, buf, -1, SQLITE_TRANSIENT);
+            
+            printf ("Enter last name: ");
+            scanf("%s", buf);
+            idx = sqlite3_bind_parameter_index (res, "@newSurname");
+            sqlite3_bind_text(res, idx, buf, -1, SQLITE_TRANSIENT);
+            
+            printf ("Enter passport number: ");
+            scanf("%s", buf);
+            idx = sqlite3_bind_parameter_index (res, "@newPass");
+            sqlite3_bind_text(res, idx, buf, -1, SQLITE_TRANSIENT);
+            
+            idx = sqlite3_bind_parameter_index(res, "@oldCardNo");
+            sqlite3_bind_null(res, idx);
+            idx = sqlite3_bind_parameter_index(res, "@newCardNo");
+            sqlite3_bind_null(res, idx);
+            idx = sqlite3_bind_parameter_index(res, "@newAccountTypeID");
+            sqlite3_bind_null(res, idx);
+            idx = sqlite3_bind_parameter_index(res, "@newAccountType");
+            sqlite3_bind_null(res, idx);
+            
+            if (sqlite3_step(res) != SQLITE_DONE)
+                printf("Execution failed: %s\n\n", sqlite3_errmsg(db));
+            else
+                printf ("Your data has been sent to administrator for verification. Thank you for choosing Uranus Banking\n\n");
+            break;
+        }
+            
+        case 2:
+        {
+            idx = sqlite3_bind_parameter_index (res, "@newName");
+            sqlite3_bind_null(res, idx);
+            idx = sqlite3_bind_parameter_index (res, "@newSurname");
+            sqlite3_bind_null(res, idx);
+            idx = sqlite3_bind_parameter_index (res, "@newPass");
+            sqlite3_bind_null(res, idx);
+            idx = sqlite3_bind_parameter_index(res, "@oldCardNo");
+            sqlite3_bind_null(res, idx);
+            idx = sqlite3_bind_parameter_index(res, "@newCardNo");
+            sqlite3_bind_null(res, idx);
+            idx = sqlite3_bind_parameter_index(res, "@newAccountTypeID");
+            sqlite3_bind_null(res, idx);
+            idx = sqlite3_bind_parameter_index(res, "@newAccountType");
+            sqlite3_bind_null(res, idx);
+            
+            if (sqlite3_step(res) != SQLITE_DONE)
+                printf("Execution failed: %s\n\n", sqlite3_errmsg(db));
+            else
+                printf ("Your data has been sent to administrator for verification. Thank you for choosing Uranus Banking\n\n");
+            break;
+
+        }
+        default:
+            break;
+    }
+}
+
+void sendOperQuery()
 {
     // TODO
 }

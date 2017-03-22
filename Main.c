@@ -46,7 +46,7 @@ void deleteClientFromBase(int query);
 
 void checkConfig();
 
-void sendAdminQuery();
+void sendAdminQuery(int code);
 void sendOperQuery();
 
 void credit(char *passportNo, char *cardNo, double money);
@@ -106,6 +106,7 @@ int main()
             break;
     }
     
+    sqlite3_finalize(res);
     sqlite3_close(db);
     return 0;
 }
@@ -154,37 +155,37 @@ void showAdminMenu()
     {
         case 1:
         {
-            addAccount (NULL);
+            addAccount ();
             break;
         }
             
         case 2:
         {
-            modifyAccount (NULL);
+            modifyAccount ();
             break;
         }
             
         case 3:
         {
-            deleteAccount(NULL);
+            deleteAccount();
             break;
         }
             
         case 4:
         {
-            addClient (NULL);
+            addClient ();
             break;
         }
             
         case 5:
         {
-            modifyClient (NULL);
+            modifyClient ();
             break;
         }
             
         case 6:
         {
-            deleteClient(NULL);
+            deleteClient();
             break;
         }
             
@@ -285,13 +286,23 @@ void showClientMenu()
     {
         case 1:
         {
-            sendAdminQuery();
+            int code;
+            printf ("1 - Modify personal information\n");
+            printf ("2 - Delete personal information\n");
+            printf ("3 - Add new account\n");
+            printf ("4 - Modify existing account\n");
+            printf ("5 - Delete existing account\n");
+            scanf ("%d", &code);
+            if (code < 1 || code > 5)
+                return;
+
+            sendAdminQuery(code);
             break;
         }
             
         case 2:
         {
-            sendAdminQuery();
+            sendOperQuery();
             break;
         }
             
@@ -368,8 +379,10 @@ void login()
         else if (strcmp(role, "Oper") == 0)
             currUser = OPER;
         else if (strcmp(role, "Client") == 0)
+        {
             currUser = CLIENT;
-        strcpy (currLogin, log);
+            strcpy (currLogin, log);
+        }
         break;
     }
 }
@@ -423,6 +436,8 @@ void signup()
         printf("Execution failed: %s\n\n", sqlite3_errmsg(db));
     else
         printf ("Your data has been sent to administrator for verification. Thank you for choosing Uranus Banking\n\n");
+    //sqlite3_step(res);
+    
 }
 
 void logout()
@@ -480,34 +495,105 @@ void showOperQueries()
 }
 
 
-void addAccount(char *cardNo)
+void addAccount()
 {
-    // TODO
+    int rowid;
+    char buf[100];
+    char *zErrMsg = 0;
+    char del[200];
+    printf ("Enter passport number of the client to be modified: ");
+    scanf ("%s", currLogin);
+    sendAdminQuery(3);
+    rowid = (int)sqlite3_last_insert_rowid(db);
+    sprintf (buf, "%d", rowid);
+    addAccountFromBase(rowid);
+    strcpy (del, "DELETE FROM ADMIN_QUERIES WHERE id = ");
+    strcat(del, buf);
+    sqlite3_exec(db, del, callbackQueries, NULL, &zErrMsg);
 }
 
 void modifyAccount(char *cardNo)
 {
-    // TODO
+    int rowid;
+    char buf[100];
+    char *zErrMsg = 0;
+    char del[200];
+    printf ("Enter passport number of the client to be modified: ");
+    scanf ("%s", currLogin);
+    sendAdminQuery(4);
+    rowid = (int)sqlite3_last_insert_rowid(db);
+    sprintf (buf, "%d", rowid);
+    modifyAccountFromBase(rowid);
+    strcpy (del, "DELETE FROM ADMIN_QUERIES WHERE id = ");
+    strcat(del, buf);
+    sqlite3_exec(db, del, callbackQueries, NULL, &zErrMsg);
 }
 
 void deleteAccount(char *cardNo)
 {
-    // TODO
+    int rowid;
+    char buf[100];
+    char *zErrMsg = 0;
+    char del[200];
+    printf ("Enter passport number of the client to be modified: ");
+    scanf ("%s", currLogin);
+    sendAdminQuery(5);
+    rowid = (int)sqlite3_last_insert_rowid(db);
+    sprintf (buf, "%d", rowid);
+    deleteAccountFromBase(rowid);
+    strcpy (del, "DELETE FROM ADMIN_QUERIES WHERE id = ");
+    strcat(del, buf);
+    sqlite3_exec(db, del, callbackQueries, NULL, &zErrMsg);
 }
 
 void addClient(char *passportNo)
 {
-    // TODO
+    int rowid;
+    char buf[100];
+    char *zErrMsg = 0;
+    char del[200];
+    signup();
+    rowid = (int)sqlite3_last_insert_rowid(db);
+    sprintf (buf, "%d", rowid);
+    addClientFromBase(rowid);
+    strcpy (del, "DELETE FROM ADMIN_QUERIES WHERE id = ");
+    strcat(del, buf);
+    sqlite3_exec(db, del, callbackQueries, NULL, &zErrMsg);
+
 }
 
 void modifyClient(char *passportNo)
 {
-    // TODO
+    int rowid;
+    char buf[100];
+    char *zErrMsg = 0;
+    char del[200];
+    printf ("Enter passport number of the client to be modified: ");
+    scanf ("%s", currLogin);
+    sendAdminQuery(1);
+    rowid = (int)sqlite3_last_insert_rowid(db);
+    sprintf (buf, "%d", rowid);
+    modifyClientFromBase(rowid);
+    strcpy (del, "DELETE FROM ADMIN_QUERIES WHERE id = ");
+    strcat(del, buf);
+    sqlite3_exec(db, del, callbackQueries, NULL, &zErrMsg);
 }
 
 void deleteClient(char *passportNo)
 {
-    // TODO
+    int rowid;
+    char buf[100];
+    char *zErrMsg = 0;
+    char del[200];
+    printf ("Enter passport number of the client to be deleted: ");
+    scanf ("%s", currLogin);
+    sendAdminQuery(2);
+    rowid = (int)sqlite3_last_insert_rowid(db);
+    sprintf (buf, "%d", rowid);
+    deleteClientFromBase(rowid);
+    strcpy (del, "DELETE FROM ADMIN_QUERIES WHERE id = ");
+    strcat(del, buf);
+    sqlite3_exec(db, del, callbackQueries, NULL, &zErrMsg);
 }
 
 
@@ -763,18 +849,8 @@ void checkConfig()
     sqlite3_exec(db, "SELECT * FROM BANK_CONFIG;", callbackQueries, NULL, &zErrMsg);
 }
 
-void sendAdminQuery()
+void sendAdminQuery(int code)
 {
-    int code;
-    printf ("1 - Modify personal information\n");
-    printf ("2 - Delete personal information\n");
-    printf ("3 - Add new account\n");
-    printf ("4 - Modify existing account\n");
-    printf ("5 - Delete existing account\n");
-    scanf ("%d", &code);
-    if (code < 1 || code > 5)
-        return;
-    
     char *firstName;
     char *lastName;
     char *type;

@@ -54,7 +54,7 @@ void sendOperQuery();
 void credit(char *passportNo, char *cardNo, double money);
 void debit (char *passportNo, char *cardNo, double money);
 void transfer(char *passportNo, char *cardNoFrom, char *cardNoTo, double money);
-void checkBalance(char *passportNo, char *cardNo);
+void checkBalance();
 
 extern void (* adminQueries[])();
 extern void (* adminQueriesFromBase[])(int);

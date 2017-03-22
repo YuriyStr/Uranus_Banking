@@ -34,7 +34,7 @@ void showClientMenu()
             
         case 3:
         {
-            
+            checkBalance();
             break;
         }
             
@@ -53,7 +53,31 @@ void showClientMenu()
     
 }
 
-void checkBalance(char *passportNo, char *cardNo)
+void checkBalance()
 {
-    // TODO
+    int ownerID;
+    char cardNo[100];
+    int idx;
+    printf ("Enter your card number: ");
+    getchar();
+    fgets(cardNo, 100, stdin);
+    cardNo [strlen(cardNo) - 1] = '\0';
+    
+    char *sel = "SELECT id FROM BANK_CLIENTS WHERE Passport_No = ?";
+    rc = sqlite3_prepare_v2(db, sel, -1, &res, 0);
+    sqlite3_bind_text(res, 1, currLogin, -1, SQLITE_TRANSIENT);
+    sqlite3_step(res);
+    ownerID = sqlite3_column_int(res, 0);
+
+    
+    char *sql = "SELECT Balance, Debt FROM BANK_ACCOUNTS WHERE Card_No = @cardNo AND Owner_ID = @id";
+    rc = sqlite3_prepare_v2(db, sql, -1, &res, 0);
+    idx = sqlite3_bind_parameter_index(res, "@cardNo");
+    sqlite3_bind_text(res, idx, cardNo, -1, SQLITE_TRANSIENT);
+    idx = sqlite3_bind_parameter_index(res, "@id");
+    sqlite3_bind_int(res, idx, ownerID);
+    sqlite3_step(res);
+    
+    printf ("Balance: %f\n", sqlite3_column_double(res, 0));
+    printf ("Debt: %f\n", sqlite3_column_double(res, 1));
 }

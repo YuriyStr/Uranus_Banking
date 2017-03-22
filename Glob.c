@@ -19,7 +19,96 @@ int callbackQueries(void *data, int argc, char **argv, char **azColName)
 
 void performPreparations()
 {
-    // TODO
+    /*char buf[100];
+    struct tm *deadline = malloc(sizeof(struct tm));
+    time_t currentTime;
+    
+    time(&currentTime);
+    
+    char *sql = "SELECT NextInterestRateDate From BANK_CONFIG Where Account_Type = ?";
+    rc = sqlite3_prepare_v2(db, sql, -1, &res, 0);
+    sqlite3_bind_text(res, 1, "Saving", -1, SQLITE_TRANSIENT);
+    sqlite3_step(res);
+    
+    strcpy (buf, (char*)sqlite3_column_text(res, 0));
+    sscanf (buf, "%d-%d-%d", &(deadline->tm_year), &(deadline->tm_mon), &(deadline->tm_mday));
+    
+    deadline->tm_year -= 1900;
+    --(deadline->tm_mon);
+    deadline->tm_hour = deadline->tm_min = deadline->tm_sec = 0;
+    
+    if ((int)currentTime >= (int)mktime(deadline))
+    {
+        double rate;
+        sel = "SELECT InterestRate FROM BANK_CONFIG WHERE Type = ?";
+        rc = sqlite3_prepare_v2(db, sql, -1, &res, 0);
+        sqlite3_bind_text(res, 1, "Saving", -1, SQLITE_TRANSIENT);
+        sqlite3_step(res);
+        rate = sqlite3_column_double(res, 0);
+        
+        sel = "SELECT ID, Balance FROM BANK_ACCOUNTS WHERE Type = ?";
+        rc = sqlite3_prepare_v2(db, sql, -1, &res, 0);
+        sqlite3_bind_text(res, 1, "Saving", -1, SQLITE_TRANSIENT);
+        while (sqlite3_step(res) == SQLITE_ROW)
+        {
+            int idx;
+            sqlite3_stmt *pStmt;
+            int id = sqlite3_column_int(res, 0);
+            double balance = sqlite3_column_double(res, 1) * (rate + 1);
+            char *upd = "UPDATE BANK_ACCOUNTS set Balance = @bal WHERE Type = \'Saving\' AND ID = @id";
+            rc = sqlite3_prepare_v2(db, upd, -1, &pStmt, 0);
+            idx = sqlite3_bind_parameter_index(res, "@bal");
+            sqlite3_bind_double(pStmt, idx, balance);
+            idx = sqlite3_bind_parameter_index(res, "@id");
+            sqlite3_bind_int(pStmt, idx, id);
+            sqlite3_step(pStmt);
+            sqlite3_finalize(pStmt);
+        }
+        
+        
+        int quota;
+        double fee;
+        double overdraftMax;
+        sel = "SELECT MonthlyQouta, PerTransactionFee, OverdraftMax FROM BANK_CONFIG WHERE Type = ?";
+        rc = sqlite3_prepare_v2(db, sql, -1, &res, 0);
+        sqlite3_bind_text(res, 1, "Overdraft", -1, SQLITE_TRANSIENT);
+        sqlite3_step(res);
+        quota = sqlite3_column_int(res, 0);
+        fee = sqlite3_column_double(res, 1);
+        overdraftMax = sqlite3_column_double(res, 2);
+        
+        sel = "SELECT ID, Balance, TotalTransactions, Type FROM BANK_ACCOUNTS WHERE Type = \'Saving\' OR Type = ?";
+        rc = sqlite3_prepare_v2(db, sql, -1, &res, 0);
+        sqlite3_bind_text(res, 1, "Overdraft", -1, SQLITE_TRANSIENT);
+        while (sqlite3_step(res) == SQLITE_ROW)
+        {
+            int idx;
+            double debt = 0;
+            sqlite3_stmt *pStmt;
+            int id = sqlite3_column_int(res, 0);
+            double balance = sqlite3_column_double(res, 1);
+            int trans = sqlite3_column_int(res, 2);
+            char *type = sqlite3_column_text(res, 3);
+            char *upd = "UPDATE BANK_ACCOUNTS set Balance = @bal, Debt = @debt, TotalTransactions = 0 WHERE (Type = \'Saving\' OR Type = \'Overdraft\') AND ID = @id";
+            rc = sqlite3_prepare_v2(db, upd, -1, &pStmt, 0);
+            idx = sqlite3_bind_parameter_index(res, "@bal");
+            if (trans > quota)
+            {
+                balance -= fee * (trans - quota);
+                
+            }
+            sqlite3_bind_double(pStmt, idx, balance);
+            idx = sqlite3_bind_parameter_index(res, "@id");
+            sqlite3_bind_int(pStmt, idx, id);
+            sqlite3_step(pStmt);
+            sqlite3_finalize(pStmt);
+        }
+
+    }
+    
+    free(deadline);
+    free(nextDay);
+     */
 }
 
 void showDefaultMenu()

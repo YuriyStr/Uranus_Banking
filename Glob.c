@@ -57,54 +57,76 @@ void performPreparations()
         int id = sqlite3_column_int(res, 0);
         double balance = sqlite3_column_double(res, 1);
         char *currOverdraft = (char*)sqlite3_column_text(res, 2);
-        if (currOverdraft == NULL)
-            continue;
-        
-        struct tm *overdraftTerm = malloc(sizeof(struct tm));
-        sscanf (currOverdraft, "%d-%d-%d", &(overdraftTerm->tm_year), &(overdraftTerm->tm_mon), &(overdraftTerm->tm_mday));
-        overdraftTerm->tm_year -= 1900;
-        --(overdraftTerm->tm_mon);
-        overdraftTerm->tm_hour = overdraftTerm->tm_min = overdraftTerm->tm_sec = 0;
-        
-        if ((int)mktime(overdraftTerm) > (int)currentTime)
-            continue;
-        
-        sqlite3_stmt *pStmt;
-        char *upd = "UPDATE BANK_ACCOUNTS SET OverdraftEnd = @end, Balance = @bal, Debt = @debt WHERE ID = @id;";
-        rc = sqlite3_prepare_v2(db, upd, -1, &pStmt, 0);
-        
-        idx = sqlite3_bind_parameter_index(pStmt, "@end");
-        if (balance >= 0)
+        if (currOverdraft != NULL)
         {
-            sqlite3_bind_null(pStmt, idx);
-        }
-        else
-        {
-            char end[20];
-            balance -= dailyFee;
-            if (balance < -overdraftMax)
+            struct tm *overdraftTerm = malloc(sizeof(struct tm));
+            sscanf (currOverdraft, "%d-%d-%d", &(overdraftTerm->tm_year), &(overdraftTerm->tm_mon), &(overdraftTerm->tm_mday));
+            overdraftTerm->tm_year -= 1900;
+            --(overdraftTerm->tm_mon);
+            overdraftTerm->tm_hour = overdraftTerm->tm_min = overdraftTerm->tm_sec = 0;
+        
+            if ((int)mktime(overdraftTerm) > (int)currentTime)
+                continue;
+        
+            sqlite3_stmt *pStmt;
+            char *upd = "UPDATE BANK_ACCOUNTS SET OverdraftEnd = @end, Balance = @bal, Debt = @debt WHERE ID = @id;";
+            rc = sqlite3_prepare_v2(db, upd, -1, &pStmt, 0);
+        
+            idx = sqlite3_bind_parameter_index(pStmt, "@end");
+            if (balance >= 0)
             {
-                debt += -balance - overdraftMax;
-                balance = -overdraftMax;
+                sqlite3_bind_null(pStmt, idx);
             }
-            sprintf(end, "%d-%d-%d", overdraftTerm->tm_year + 1900, overdraftTerm->tm_mon + 1, overdraftTerm->tm_mday + 1);
-            sqlite3_bind_text(pStmt, idx, end, -1, SQLITE_TRANSIENT);
+            else
+            {
+                char end[20];
+                balance -= dailyFee;
+                if (balance < -overdraftMax)
+                {
+                    debt += -balance - overdraftMax;
+                    balance = -overdraftMax;
+                }
+                sprintf(end, "%d-%d-%d", overdraftTerm->tm_year + 1900, overdraftTerm->tm_mon + 1, overdraftTerm->tm_mday + 1);
+                sqlite3_bind_text(pStmt, idx, end, -1, SQLITE_TRANSIENT);
+            }
+        
+            idx = sqlite3_bind_parameter_index(pStmt, "@bal");
+            sqlite3_bind_double(pStmt, idx, balance);
+        
+            idx = sqlite3_bind_parameter_index(pStmt, "@debt");
+            sqlite3_bind_double(pStmt, idx, debt);
+        
+            idx = sqlite3_bind_parameter_index(pStmt, "@id");
+            sqlite3_bind_int(pStmt, idx, id);
+        
+            sqlite3_step(pStmt);
+            sqlite3_finalize(pStmt);
+            free(overdraftTerm);
         }
         
-        idx = sqlite3_bind_parameter_index(pStmt, "@bal");
-        sqlite3_bind_double(pStmt, idx, balance);
-        
-        idx = sqlite3_bind_parameter_index(pStmt, "@debt");
-        sqlite3_bind_double(pStmt, idx, debt);
-        
-        idx = sqlite3_bind_parameter_index(pStmt, "@id");
-        sqlite3_bind_int(pStmt, idx, id);
-        
-        sqlite3_step(pStmt);
-        sqlite3_finalize(pStmt);
-        free(overdraftTerm);
+        else if (balance < 0)
+        {
+            sqlite3_stmt *pStmt;
+            char *sel = "SELECT OverdraftTermDays, OverdraftMax From BANK_CONFIG Where Account_Type = ?";
+            rc = sqlite3_prepare_v2(db, sel, -1, &pStmt, 0);
+            sqlite3_bind_text(res, 1, "Overdraft", -1, SQLITE_TRANSIENT);
+            sqlite3_step(res);
+            int days = sqlite3_column_int(pStmt, 0);
+            double overdraftMax = sqlite3_column_double(pStmt, 1);
+            
+            char end[20];
+            sprintf (end, "%d-%d-%d", currentTimeInfo->tm_year + 1900, currentTimeInfo->tm_mon + 1, currentTimeInfo->tm_mday + days);
+            sel = "UPDATE BANK_ACCOUNTS set OverdraftEnd = @end Where ID = @id";
+            rc = sqlite3_prepare_v2(db, sel, -1, &pStmt, 0);
+            idx = sqlite3_bind_parameter_index(pStmt, "@end");
+            sqlite3_bind_text(res, idx, end, -1, SQLITE_TRANSIENT);
+            idx = sqlite3_bind_parameter_index(pStmt, "@id");
+            sqlite3_bind_int(pStmt, idx, id);
+            sqlite3_step(pStmt);
+            sqlite3_finalize(pStmt);
+            
+        }
     }
-
     
     if ((int)currentTime >= (int)mktime(deadline))
     {
@@ -406,7 +428,73 @@ void showAdminQueries()
 
 void showOperQueries()
 {
-    // TODO
+    int code;
+    char *zErrMsg = 0;
+    for(;;)
+    {
+        sqlite3_exec(db, "SELECT * FROM OPER_QUERIES;", callbackQueries, NULL, &zErrMsg);
+        printf ("<ID> - perform query\n");
+        printf ("0 - Exit\n");
+        int accept;
+        scanf("%d", &code);
+        if (code == 0)
+            break;
+        printf ("1 - accept query\n");
+        printf ("2 - deny query\n");
+        scanf("%d", &accept);
+        if (accept != 1 && accept != 2)
+        {
+            printf ("Invalid command");
+            continue;
+        }
+        
+        if (accept == 1)
+        {
+            char *sql;
+            char *queryType;
+            char *cardNoFrom;
+            char *cardNoTo;
+            double money;
+            char *pass;
+            sql = "SELECT QueryType, CardNoFrom, CardNoTo, Money, PassportNo from OPER_QUERIES WHERE id = ?;";
+            rc = sqlite3_prepare_v2(db, sql, -1, &res, 0);
+            sqlite3_bind_int(res, 1, code);
+            sqlite3_step(res);
+            queryType = (char*)sqlite3_column_text(res, 0);
+            cardNoFrom = (char*)sqlite3_column_text(res, 1);
+            cardNoTo = (char*)sqlite3_column_text(res, 2);
+            money = sqlite3_column_double(res, 3);
+            pass = (char*)sqlite3_column_text(res, 4);
+            
+            if (strcmp(queryType, "Credit") == 0)
+            {
+                credit (pass, cardNoTo, money);
+            }
+            else if (strcmp(queryType, "Debit") == 0)
+            {
+                debit(pass, cardNoFrom, money);
+            }
+            else if (strcmp(queryType, "Transfer") == 0)
+            {
+                transfer (pass, cardNoFrom, cardNoTo, money);
+            }
+            else
+            {
+                printf ("Unrecognised command\n");
+            }
+
+        }
+        
+        char del[1000];
+        char buf[8];
+        sprintf(buf, "%d", code);
+        strcpy(del, "DELETE FROM OPER_QUERIES WHERE id = ");
+        strcat(del, buf);
+        sqlite3_exec(db, del, callbackQueries, NULL, &zErrMsg);
+        
+        printf ("Done\n\n");
+    }
+
 }
 
 void sendAdminQuery(int code)
@@ -583,6 +671,117 @@ void sendAdminQuery(int code)
 
 void sendOperQuery()
 {
-    // TODO
+    int code;
+    printf ("1 - Credit money\n");
+    printf ("2 - Debit money\n");
+    printf ("3 - Transfer money\n");
+    scanf ("%d", &code);
+    if (code < 1 || code > 3)
+    {
+        printf ("Invalid command\n");
+        return;
+    }
+    
+    char *firstName;
+    char *lastName;
+    char *type;
+    char *selType = "SELECT Type from OPER_QUERY_TYPES WHERE id = ?";
+    char *selPersonal = "SELECT First_Name, Surname FROM BANK_CLIENTS WHERE Passport_No = ?";
+    
+    rc = sqlite3_prepare_v2(db, selType, -1, &res, 0);
+    sqlite3_bind_int(res, 1, code);
+    sqlite3_step(res);
+    type = (char*)sqlite3_column_text(res, 0);
+    
+    rc = sqlite3_prepare_v2(db, selPersonal, -1, &res, 0);
+    sqlite3_bind_text(res, 1, currLogin, -1, SQLITE_TRANSIENT);
+    sqlite3_step(res);
+    firstName = (char*)sqlite3_column_text(res, 0);
+    lastName = (char*)sqlite3_column_text(res, 1);
+    
+    int idx;
+    char *sql = "INSERT into OPER_QUERIES (PassportNo, FirstName, LastName, QueryType, QueryID, CardNoFrom, CardNoTo, Money) Values (@passport, @name, @surname, @type, @queryID, @cardNoFrom, @cardNoTo, @money);";
+    rc = sqlite3_prepare_v2(db, sql, -1, &res, 0);
+    
+    idx = sqlite3_bind_parameter_index (res, "@passport");
+    sqlite3_bind_text(res, idx, currLogin, -1, SQLITE_TRANSIENT);
+    idx = sqlite3_bind_parameter_index (res, "@name");
+    sqlite3_bind_text(res, idx, firstName, -1, SQLITE_TRANSIENT);
+    idx = sqlite3_bind_parameter_index (res, "@surname");
+    sqlite3_bind_text(res, idx, lastName, -1, SQLITE_TRANSIENT);
+    idx = sqlite3_bind_parameter_index (res, "@type");
+    sqlite3_bind_text(res, idx, type, -1, SQLITE_TRANSIENT);
+    idx = sqlite3_bind_parameter_index(res, "@queryID");
+    sqlite3_bind_int(res, idx, code);
+
+    switch (code)
+    {
+        case 1:
+        {
+            char cardNoTo[100];
+            double money;
+            getchar();
+            printf ("Enter your card number: ");
+            fgets(cardNoTo, 100, stdin);
+            cardNoTo[strlen(cardNoTo) - 1] = '\0';
+            printf ("Enter the amount of money to credit: ");
+            scanf ("%lf", &money);
+            
+            idx = sqlite3_bind_parameter_index (res, "@cardNoTo");
+            sqlite3_bind_text(res, idx, cardNoTo, -1, SQLITE_TRANSIENT);
+            idx = sqlite3_bind_parameter_index (res, "@cardNoFrom");
+            sqlite3_bind_null(res, idx);
+            idx = sqlite3_bind_parameter_index(res, "@money");
+            sqlite3_bind_double(res, idx, money);
+            break;
+        }
+            
+        case 2:
+        {
+            char cardNoFrom[100];
+            double money;
+            getchar();
+            printf ("Enter your card number: ");
+            fgets(cardNoFrom, 100, stdin);
+            cardNoFrom[strlen(cardNoFrom) - 1] = '\0';
+            printf ("Enter the amount of money to debit: ");
+            scanf ("%lf", &money);
+            
+            idx = sqlite3_bind_parameter_index (res, "@cardNoFrom");
+            sqlite3_bind_text(res, idx, cardNoFrom, -1, SQLITE_TRANSIENT);
+            idx = sqlite3_bind_parameter_index (res, "@cardNoTo");
+            sqlite3_bind_null(res, idx);
+            idx = sqlite3_bind_parameter_index(res, "@money");
+            sqlite3_bind_double(res, idx, money);
+            break;
+        }
+            
+        case 3:
+        {
+            char cardNoFrom[100];
+            char cardNoTo[100];
+            double money;
+            getchar();
+            printf ("Enter your card number to transfer money from: ");
+            fgets(cardNoFrom, 100, stdin);
+            cardNoFrom[strlen(cardNoFrom) - 1] = '\0';
+            printf ("Enter your card number to transfer money to: ");
+            fgets(cardNoTo, 100, stdin);
+            cardNoTo[strlen(cardNoTo) - 1] = '\0';
+            printf ("Enter the amount of money to transfer: ");
+            scanf ("%lf", &money);
+            
+            idx = sqlite3_bind_parameter_index (res, "@cardNoTo");
+            sqlite3_bind_text(res, idx, cardNoTo, -1, SQLITE_TRANSIENT);
+            idx = sqlite3_bind_parameter_index (res, "@cardNoFrom");
+            sqlite3_bind_text(res, idx, cardNoFrom, -1, SQLITE_TRANSIENT);
+            idx = sqlite3_bind_parameter_index(res, "@money");
+            sqlite3_bind_double(res, idx, money);
+            break;
+        }
+
+    }
+    
+    sqlite3_step(res);
 }
 

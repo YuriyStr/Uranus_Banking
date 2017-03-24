@@ -52,14 +52,13 @@ void checkConfig();
 void sendAdminQuery(int code);
 void sendOperQuery();
 
-void credit(char *passportNo, char *cardNo, double money);
-void debit (char *passportNo, char *cardNo, double money);
-void transfer(char *passportNo, char *cardNoFrom, char *cardNoTo, double money);
+int credit(char *passportNo, char *cardNo, double money);
+int debit (char *passportNo, char *cardNo, double money);
+int transfer(char *passportNo, char *cardNoFrom, char *cardNoTo, double money);
 void checkBalance();
 
-extern void (* adminQueries[])();
 extern void (* adminQueriesFromBase[])(int);
-extern void (*operQueries[])(char*, char*, double);
+
 
 int callbackQueries(void *data, int argc, char **argv, char **azColName);
 #endif // _GLOBH_DEFINED_

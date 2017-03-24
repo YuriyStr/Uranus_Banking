@@ -7,9 +7,7 @@ int currUser = NO_USER;
 int working = 1;
 char currLogin[100];
 
-void (* adminQueries[])() = {addClient, modifyClient, deleteClient, addAccount, modifyAccount, deleteAccount };
 void (* adminQueriesFromBase[])(int) = {addClientFromBase, modifyClientFromBase, deleteClientFromBase, addAccountFromBase, modifyAccountFromBase, deleteAccountFromBase };
-void (*operQueries[])(char*, char*, double) = { credit, debit };
 
 int main()
 {
